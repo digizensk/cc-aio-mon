@@ -163,16 +163,27 @@ def seg_title(data):
             size = fh.tell()
             fh.seek(max(0, size - 262144))
             tail = fh.read().decode("utf-8", errors="replace")
-        for line in reversed(tail.splitlines()):
+        lines_tail = tail.splitlines()
+        # find last custom-title and track whether /new or /clear came after it
+        title_line_idx = None
+        for idx in range(len(lines_tail) - 1, -1, -1):
+            line = lines_tail[idx]
             if '"custom-title"' not in line:
                 continue
             try:
                 r = json.loads(line)
                 if r.get("type") == "custom-title":
                     title = r.get("customTitle", "")
+                    title_line_idx = idx
                     break
             except json.JSONDecodeError:
                 continue
+        # if /new or /clear appeared after the last custom-title, title is stale
+        if title and title_line_idx is not None:
+            for line in lines_tail[title_line_idx + 1:]:
+                if "<command-name>/new</command-name>" in line or "<command-name>/clear</command-name>" in line:
+                    title = None
+                    break
     except OSError:
         return None
     if not title:
